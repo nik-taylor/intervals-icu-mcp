@@ -1,16 +1,16 @@
 # Tool, Resource, and Prompt Reference
 
-Complete inventory of everything the Intervals.icu MCP server exposes: up to 62 tools across 11 categories, 4 MCP Resources, and 7 MCP Prompts.
+Complete inventory of everything the Intervals.icu MCP server exposes: up to 68 tools across 11 categories, 4 MCP Resources, and 9 MCP Prompts.
 
 ## Delete Safety Mode
 
 Destructive tools are gated by the optional `INTERVALS_ICU_DELETE_MODE` env var. The gate sits **outside the model's reach** — tools that aren't registered cannot be invoked by any prompt or parameter.
 
-| Mode | Registered tools | Events | Activities | Gear | Sport settings | Custom items |
-|---|---|---|---|---|---|---|
-| `safe` (default) | 59 | tomorrow or later | ✗ | ✓ | ✗ | ✗ |
-| `full` | 62 | any date | ✓ | ✓ | ✓ | ✓ |
-| `none` | 56 | ✗ | ✗ | ✗ | ✗ | ✗ |
+| Mode | Registered tools | Events | Activities | Gear | Library workouts | Sport settings | Custom items |
+|---|---|---|---|---|---|---|---|
+| `safe` (default) | 65 | tomorrow or later | ✗ | ✓ | ✓ | ✗ | ✗ |
+| `full` | 68 | any date | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `none` | 61 | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
 
 In `safe` mode, `icu_delete_event` and `icu_bulk_delete_events` return a uniform envelope showing what was deleted and what was skipped:
 
@@ -44,7 +44,9 @@ Set the mode in your client config alongside the credentials:
 
 **Why today is treated as past:** Safe mode only deletes events dated *strictly after today* in the server's local timezone. The one-day buffer absorbs server-vs-athlete TZ skew. If you run the server in Docker (defaults to UTC) and live in a different timezone, set the container's `TZ` env var to match your athlete profile (e.g., `TZ=Europe/Berlin`) so "today" lines up.
 
-**Why sport settings and custom items are full-only:** Sport-settings deletion shifts retroactive chart math (current FTP/zones drive past activity calculations on Intervals.icu, so deleting them re-renders historical training load). Custom items can be data-bearing fields whose values are stored across activities. Neither is recoverable by re-creating the deleted record.
+**Why sport settings and custom items are full-only:** Sport-settings deletion removes the thresholds and zones that activities of that sport are analysed against from then on, and re-creating the record starts from defaults rather than restoring them. Custom items can be data-bearing fields whose values are stored across activities. Neither is recoverable by re-creating the deleted record.
+
+**Why library workouts are allowed in safe mode:** A library workout is a reusable template. Deleting one leaves calendar events (including ones created from it by `icu_apply_training_plan`) and recorded activities untouched, and the template can be rebuilt from its workout text — the same low-stakes profile as gear.
 
 ## Tools
 
@@ -136,18 +138,19 @@ The threaded notes/comments shown under an activity — the user's own training 
 | `icu_get_wellness_for_date` | Get complete wellness data for a specific date                      |
 | `icu_update_wellness`       | Update or create wellness data for a date                           |
 
-### Events / Calendar (11 tools)
+### Events / Calendar (12 tools)
 
 | Tool                    | Description                                                |
 | ----------------------- | ---------------------------------------------------------- |
 | `icu_get_calendar_events`   | Get planned events and workouts from calendar              |
-| `icu_get_upcoming_workouts` | Get upcoming planned workouts only                         |
+| `icu_get_upcoming_workouts` | Upcoming planned WORKOUT **calendar events** only — not workout-library templates (see [Workout Library](#workout-library-7-tools)); returns event IDs |
 | `icu_get_annual_training_plan` | Read ATP periodization — weekly TSS targets, phases, ATP week notes (`week_note`; default: 365 days ahead; narrow with `days_ahead`/`days_back` for a specific month) |
 | `icu_get_event`             | Get details for a specific event                           |
-| `icu_create_event`          | Create new calendar events (workouts, races, notes, goals) |
-| `icu_update_event`          | Modify existing calendar events                            |
+| `icu_create_event`          | Create new calendar events (workouts, races, notes, goals); optional `hide_from_athlete` / `athlete_cannot_edit` |
+| `icu_update_event`          | Modify existing calendar events (only the fields passed), including `hide_from_athlete` / `athlete_cannot_edit` |
 | `icu_delete_event`          | Remove an event from the calendar *(safe mode: future events only; envelope returns `deleted` / `skipped`)* |
 | `icu_bulk_create_events`    | Create multiple events in a single operation               |
+| `icu_bulk_update_event_access` | Hide/reveal or lock/unlock many planned WORKOUT events by ID list or date range — the web UI's "Hide from athlete" / "Athlete cannot edit" checkboxes. Other categories are reported as `skipped`; results split into `updated` / `unchanged` / `skipped` / `failed` |
 | `icu_bulk_delete_events`    | Delete multiple events in a single operation *(safe mode partitions into `deleted` / `skipped`)* |
 | `icu_duplicate_events`      | Duplicate one or more events with configurable copies and spacing |
 | `icu_apply_training_plan` | Apply an entire training plan (workout folder) onto the calendar |
@@ -160,12 +163,17 @@ The threaded notes/comments shown under an activity — the user's own training 
 | `icu_get_hr_curves`    | Analyze heart rate curves with HR zones                  |
 | `icu_get_pace_curves`  | Analyze running/swimming pace curves with optional GAP   |
 
-### Workout Library (2 tools)
+### Workout Library (7 tools)
 
 | Tool                     | Description                               |
 | ------------------------ | ----------------------------------------- |
 | `icu_get_workout_library`    | Browse workout folders and training plans |
-| `icu_get_workouts_in_folder` | View all workouts in a specific folder    |
+| `icu_get_workouts_in_folder` | View all workouts in a specific folder (includes plan `day`) |
+| `icu_create_workout`         | Save a reusable workout to an existing folder or plan (optional plan `day`) |
+| `icu_update_workout`         | Change fields on a library workout (only provided fields are sent) |
+| `icu_delete_workout`         | Delete a library workout *(registered in `safe` and `full` modes)* |
+| `icu_bulk_create_workouts`   | Save multiple library workouts in a single operation (e.g. filling out a plan) |
+| `icu_create_workout_folder`  | Create a new workout folder (`FOLDER`) or training plan (`PLAN`) |
 
 ### Gear Management (6 tools)
 
@@ -183,10 +191,10 @@ The threaded notes/comments shown under an activity — the user's own training 
 | Tool                    | Description                                             |
 | ----------------------- | ------------------------------------------------------- |
 | `icu_get_sport_settings`    | Get per-sport thresholds plus configured power/HR/pace zones |
-| `icu_update_sport_settings` | Update outdoor/indoor FTP, FTHR, or pace/swim thresholds |
-| `icu_apply_sport_settings`  | Recompute historical activity metrics from current sport settings |
+| `icu_update_sport_settings` | Update outdoor/indoor FTP, FTHR, or pace/swim thresholds, or set explicit HR/power zone bounds (e.g. from a lab test) |
+| `icu_apply_sport_settings`  | Overwrite zones on all past activities of a sport with the current zones (no date range; for selected activities use Update zones in the web UI list view) |
 | `icu_create_sport_settings` | Create new sport-specific settings                      |
-| `icu_delete_sport_settings` | Delete sport-specific settings *(only registered when `INTERVALS_ICU_DELETE_MODE=full`; deletion shifts retroactive chart math)* |
+| `icu_delete_sport_settings` | Delete sport-specific settings *(only registered when `INTERVALS_ICU_DELETE_MODE=full`; past activities keep their analysed values, but re-creating the record starts from defaults)* |
 
 ### Custom Items (5 tools)
 
@@ -224,3 +232,5 @@ Prompt templates for common queries, accessible via prompt suggestions in Claude
 | `icu_training_plan_review`    | Weekly training plan evaluation with workout library                     |
 | `icu_plan_training_week`      | AI-assisted weekly training plan creation based on current fitness       |
 | `generate_workout`            | Generate a structured workout with sport, type, and duration parameters  |
+| `verify_setup`                | Exercise core tools against your account to verify the server works      |
+| `verify_multi_athlete`        | Verify coach/multi-athlete access by querying another athlete's data     |
